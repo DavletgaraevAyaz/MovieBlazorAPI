@@ -8,58 +8,60 @@
 
 <style>
     .chat-list {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-top: 20px;
-    padding: 20px;
-    background-color: #fff3e0;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 20px;
+        padding: 20px;
+        background-color: #e6f7ff; /* Светло-голубой фон */
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     }
 
     .chat-item {
-    background-color: #ffcc80;
-    border: 1px solid #ffab40;
-    border-radius: 8px;
-    padding: 15px 20px;
-    margin: 10px 0;
-    width: 80%;
-    text-align: center;
-    cursor: pointer;
-    transition: background-color 0.3s, transform 0.2s;
-    cursor: pointer;
-
+        background-color: #b3d9ff; /* Голубой фон для элементов чата */
+        border: 1px solid #80bfff; /* Голубая рамка */
+        border-radius: 8px;
+        padding: 15px 20px;
+        margin: 10px 0;
+        width: 80%;
+        text-align: center;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.2s;
     }
 
-    .chat-item:hover {
-    background-color: #ffb74d;
-    transform: scale(1.02);
-    }
+        .chat-item:hover {
+            background-color: #80bfff; /* Более яркий голубой при наведении */
+            transform: scale(1.02);
+        }
 
     h3 {
-    color: #e65100;
-    text-align: center;
-    margin-bottom: 20px;
+        color: #003366; /* Темно-синий текст */
+        text-align: center;
+        margin-bottom: 20px;
     }
 </style>
-
 <h3> Чаты </h3>
 
-<div class = "chat-list">
-    @if (chats.Count != 0) {
-        @foreach(var chat in chats) {
-            <div class = "chat-item" @onclick = "() => NavigateToChat(chat)">
+<div class="chat-list">
+    @if (chats.Count != 0)
+    {
+        @foreach (var chat in chats)
+        {
+            <div class="chat-item" @onclick="() => NavigateToChat(chat)">
                 @if (chat.ReceiverId == userId)
                 {
                     @chat.SenderName
                 }
-                else {
+                else
+                {
                     @chat.ReceiverName
                 }
             </div>
         }
-    } else {
+    }
+    else
+    {
         <div class="chat-item">Пока что нет чатов</div>
     }
 </div>
@@ -146,10 +148,10 @@
             userId = int.Parse(jwtToken.Claims.First(c => c.Type == ClaimTypes.NameIdentifier).Value);
             chats = await MessagesService.getMessagesAsync(userId);
             chats.Insert(0, new UserMessageDto
-            {
-                ReceiverId = -1,
-                ReceiverName = "Чат фильмов",
-            });
+                {
+                    ReceiverId = -1,
+                    ReceiverName = "Чат фильмов",
+                });
             StateHasChanged();
         }
     }

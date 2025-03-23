@@ -16,15 +16,15 @@
 
 <style>
     body {
-        background-color: #f9f9f9; /* Светлый фон */
-        color: #343a40;
+        background-color: #e6f7ff; /* Светло-голубой фон */
+        color: #003366; /* Темно-синий текст */
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         margin: 0;
         padding: 0;
     }
 
     .header {
-        color: black;
+        color: #003366; /* Темно-синий текст */
         padding: 20px;
         text-align: center;
         font-size: 24px;
@@ -33,6 +33,7 @@
         justify-content: center;
         align-items: center;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background-color: #b3d9ff; /* Светло-голубой фон */
     }
 
     .login-container {
@@ -54,7 +55,7 @@
         .login-form h3 {
             text-align: center;
             margin-bottom: 20px;
-            color: #ff9800; /* Оранжевый цвет заголовка формы */
+            color: #007acc; /* Синий цвет заголовка формы */
         }
 
     .form-group {
@@ -66,20 +67,22 @@
             margin-bottom: 5px;
             font-weight: bold;
             font-size: 14px;
+            color: #007acc; /* Синий цвет для меток */
         }
 
     .form-control {
         width: 100%;
         padding: 10px;
-        border: 1px solid #dddddd;
+        border: 1px solid #80bfff; /* Голубая рамка */
         border-radius: 4px;
         font-size: 14px;
+        background-color: #ffffff; /* Белый фон для полей ввода */
     }
 
     .btn-primary {
         width: 100%;
         padding: 12px;
-        background-color: #ff9800; /* Оранжевый цвет кнопки */
+        background-color: #007acc; /* Синий цвет кнопки */
         color: #ffffff;
         border: none;
         border-radius: 4px;
@@ -90,11 +93,11 @@
     }
 
         .btn-primary:hover {
-            background-color: #e68900; /* Темнее оранжевый при наведении */
+            background-color: #005c99; /* Темно-синий при наведении */
         }
 
     .alert {
-        background-color: #F44336; /* Красный цвет для ошибок */
+        background-color: #ff4d4d; /* Красный цвет для ошибок */
         color: #ffffff;
         padding: 10px;
         border-radius: 4px;
@@ -104,7 +107,7 @@
     }
 
     .register-link {
-        color: #ff9800; /* Оранжевый цвет для ссылки */
+        color: #007acc; /* Синий цвет для ссылки */
         text-decoration: none;
         font-weight: bold;
     }
@@ -159,19 +162,17 @@
         }
 
     @@keyframes fadeIn {
-        from
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
 
-    {
-        opacity: 0;
-        transform: translateX(100%);
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
     }
-
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-
-    }</style>
+</style>
 
 <div class="header">
     Авторизация

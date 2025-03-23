@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace APIBlazor.Migrations
 {
     [DbContext(typeof(ContextDB))]
-    [Migration("20250321061300_first")]
+    [Migration("20250323194111_first")]
     partial class first
     {
         /// <inheritdoc />

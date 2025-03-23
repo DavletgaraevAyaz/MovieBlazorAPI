@@ -13,91 +13,91 @@
 
 <style>
     .chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh; /* Высота на всю страницу */
-    width: 80%;
-    margin: auto;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background-color: #f9f9f9;
+        display: flex;
+        flex-direction: column;
+        height: 100vh; /* Высота на всю страницу */
+        width: 80%;
+        margin: auto;
+        border: 1px solid #80bfff; /* Голубая рамка */
+        border-radius: 8px;
+        background-color: #e6f7ff; /* Светло-голубой фон */
     }
 
     .chat-title {
-    background-color: #007bff; /* Цвет заголовка */
-    color: white;
-    padding: 10px;
-    text-align: center;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+        background-color: #007acc; /* Синий цвет заголовка */
+        color: white;
+        padding: 10px;
+        text-align: center;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
     }
 
     .messages {
-    flex: 1; /* Занимает оставшееся пространство */
-    padding: 10px;
-    overflow-y: auto; /* Прокрутка при переполнении */
+        flex: 1; /* Занимает оставшееся пространство */
+        padding: 10px;
+        overflow-y: auto; /* Прокрутка при переполнении */
     }
 
     .message {
-    margin: 5px 0;
-    padding: 10px;
-    border-radius: 5px;
-    max-width: 80%;
+        margin: 5px 0;
+        padding: 10px;
+        border-radius: 5px;
+        max-width: 80%;
     }
 
     .user-message {
-    align-self: flex-end;
-    background-color: #dcf8c6;
+        align-self: flex-end;
+        background-color: #cce6ff; /* Голубой фон для сообщений пользователя */
     }
 
     .sender-message {
-    align-self: flex-start;
-    background-color: #fff;
+        align-self: flex-start;
+        background-color: #ffffff; /* Белый фон для сообщений отправителя */
     }
 
     .timestamp {
-    font-size: 0.8em;
-    color: gray;
-    margin-top: 5px;
+        font-size: 0.8em;
+        color: #666; /* Серый цвет для времени */
+        margin-top: 5px;
     }
 
     .input-container {
-    display: flex;
-    padding: 10px;
-    border-top: 1px solid #ccc;
-    background-color: #fff;
+        display: flex;
+        padding: 10px;
+        border-top: 1px solid #80bfff; /* Голубая рамка */
+        background-color: #ffffff; /* Белый фон для контейнера ввода */
     }
 
     input[type="text"] {
-    flex: 1; /* Занимает оставшееся пространство */
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    margin-right: 10px;
+        flex: 1; /* Занимает оставшееся пространство */
+        padding: 10px;
+        border: 1px solid #80bfff; /* Голубая рамка */
+        border-radius: 5px;
+        margin-right: 10px;
     }
 
     button {
-    padding: 10px 15px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
+        padding: 10px 15px;
+        background-color: #007acc; /* Синий цвет кнопки */
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
     }
 
-    button:hover {
-    background-color: #0056b3; /* Темнее при наведении */
-    }
+        button:hover {
+            background-color: #005c99; /* Темно-синий при наведении */
+        }
 
     .film-title {
-    font-weight: bold;
-    margin-bottom: 5px;
+        font-weight: bold;
+        margin-bottom: 5px;
     }
 
     .sender-name {
-    font-size: 0.9em;
-    color: #007bff;
-    cursor: pointer;
+        font-size: 0.9em;
+        color: #007acc; /* Синий цвет для имени отправителя */
+        cursor: pointer;
     }
 </style>
 
@@ -112,10 +112,12 @@
                     <div class="film-title">Фильм: @message.Title</div>
                 }
                 <div class="message-content">
-                    @if(message.SenderId != userId) {
+                    @if (message.SenderId != userId)
+                    {
                         <a class="sender-name" href="/chats/@message.SenderId">@message.SenderName:</a>
                     }
-                    else {
+                    else
+                    {
                         <p class="sender-name">@message.SenderName:</p>
                     }
                     <p>@message.Message</p>
@@ -129,10 +131,10 @@
             <option value="no">Выберите фильм</option>
             @foreach (var movie in movies)
             {
-                <option value = "@movie.Id">@movie.Name</option>
+                <option value="@movie.Id">@movie.Name</option>
             }
         </select>
-        <input type="text" @bind="newMessageContent" placeholder="Введите сообщение..." @onkeydown="@(e => { if (e.Key == "Enter") SendMessage(); })"  />
+        <input type="text" @bind="newMessageContent" placeholder="Введите сообщение..." @onkeydown="@(e => { if (e.Key == "Enter") SendMessage(); })" />
         <button @onclick="SendMessage">Отправить</button>
     </div>
 </div>
