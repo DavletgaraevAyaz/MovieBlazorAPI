@@ -1,0 +1,404 @@
+﻿@page "/movies"
+@using BlazorAPI.ApiRequest
+@using BlazorAPI.ApiRequest.Model
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Blazored.LocalStorage
+@inject MovieService MovieService
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILocalStorageService LocalStorage
+@attribute [Authorize]
+@rendermode RenderMode.InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject HttpClient Http
+@using System.IdentityModel.Tokens.Jwt
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Web
+@using System.Net.Http.Headers
+@using System.Text.Json
+@using System.Text
+@using System.Timers
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<style>
+    body {
+        background-color: #ffffff; /* Светлый фон */
+        color: #121212; /* Темный текст */
+        font-family: Arial, sans-serif;
+    }
+
+    .movies-container {
+        padding: 20px;
+        min-height: calc(100vh - 100px);
+    }
+
+    .movies-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .movie-card {
+        background-color: #ffe0b2; /* Оранжевая карточка */
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+        .movie-card:hover {
+            transform: translateY(-5px);
+        }
+
+    .movie-title {
+        font-size: 1.2em;
+        margin-bottom: 10px;
+        color: #e65100; /* Темный оранжевый текст */
+    }
+
+    .movie-info {
+        color: #6d4c41; /* Коричневый текст */
+        margin-bottom: 5px;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+        flex-wrap: wrap; /* Чтобы кнопки не выходили за границы */
+    }
+
+    .btn-custom {
+        padding: 6px 10px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        font-size: 0.9em;
+    }
+
+    .btn-edit {
+        background-color: #ff9800; /* Оранжевая кнопка редактирования */
+        color: white;
+    }
+
+    .btn-delete {
+        background-color: #dc3545; /* Красная кнопка удаления */
+        color: white;
+    }
+
+    .btn-view {
+        background-color: #4caf50; /* Зеленая кнопка просмотра */
+        color: white;
+    }
+
+    .add-movie-btn {
+        background-color: #ff9800; /* Оранжевая кнопка добавления */
+    }
+
+    .header {
+        background-color: #ffcc80; /* Светлый оранжевый фон для шапки */
+        padding: 20px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+        color: #121212; /* Темный текст */
+    }
+
+    .nav-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .nav-btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        background-color: #ffe0b2; /* Светлый оранжевый фон для кнопок навигации */
+        color: #000000;
+        transition: background-color 0.3s;
+    }
+
+        .nav-btn:hover {
+            background-color: #ffd54f; /* Более яркий оранжевый при наведении */
+        }
+
+    .logout-btn {
+        background-color: #dc3545; /* Красная кнопка выхода */
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+        .logout-btn:hover {
+            background-color: #c82333; /* Темно-красный при наведении */
+        }
+
+    .search-container {
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .search-container input {
+            padding: 8px;
+            background-color: #ffffff;
+            color: #121212;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 200px;
+        }
+
+        .search-container button,
+        .add-movie-btn {
+            padding: 8px 16px;
+            background-color: #ff9800; /* Оранжевая кнопка */
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            height: 36px; /* Фиксированная высота для всех кнопок */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-container .reset-button {
+            background-color: #6c757d; /* Серый цвет для кнопки сброса */
+        }
+
+        .search-container button:hover,
+        .add-movie-btn:hover {
+            opacity: 0.9;
+        }
+
+    .loading-text {
+        text-align: center;
+        margin-top: 20px;
+        color: #666;
+    }
+
+    .no-data-text {
+        text-align: center;
+        margin-top: 20px;
+        color: #666;
+    }
+</style>
+
+<div class="movies-container">
+    <div style="display: flex; align-items: center;">
+        <h3>Фильмы</h3>
+        <div class="nav-buttons" style="height: 80%; margin-left: 3%;">
+            <AuthorizeView Roles="Администратор">
+                <Authorized>
+                    <button class="nav-btn" @onclick='() => Navigation.NavigateTo("/users")'>
+                        Пользователи
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+            <button class="nav-btn" @onclick='() => Navigation.NavigateTo("/profile")'>
+                Профиль
+            </button>
+            <button class="nav-btn" @onclick='() => Navigation.NavigateTo("/chats")'>
+                Чаты
+            </button>
+            <button class="logout-btn" @onclick="@(() => Logout())">
+                Выйти
+            </button>
+        </div>
+    </div>
+    <div class="search-container">
+        <input type="text" @bind="searchMovieId" @oninput="OnInputSearchMovieId" placeholder="Введите ID фильма" />
+        <button @onclick="SearchMovieById">Найти</button>
+        <button class="reset-button" @onclick="ResetMovieList">Сбросить</button>
+        <AuthorizeView Roles="Администратор">
+            <Authorized>
+                <button class="add-movie-btn" @onclick="CreateMovie">Добавить фильм</button>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+
+    @if (isLoading)
+    {
+        <p class="loading-text">Загрузка...</p>
+    }
+    else if (movies == null || !movies.Any())
+    {
+        <p class="no-data-text">Нет данных о фильмах.</p>
+    }
+    else
+    {
+        <div class="movies-grid">
+            @foreach (var movie in movies)
+            {
+                <div class="movie-card">
+                    <div>
+                        <h4 class="movie-title">@movie.Name</h4>
+                        <p class="movie-info">Жанр: @movie.Genre</p>
+                        <p class="movie-info">Рейтинг: @movie.Rating</p>
+                        <p class="movie-info">Дата выхода: @movie.ReleaseDate.ToShortDateString()</p>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn-custom btn-view" @onclick="() => ViewMovie(movie.Id)">
+                            Подробнее
+                        </button>
+                        <AuthorizeView Roles="Администратор">
+                            <Authorized>
+                                <button class="btn-custom btn-edit" @onclick="() => EditMovie(movie.Id)">
+                                    Редактировать
+                                </button>
+                                <button class="btn-custom btn-delete" @onclick="() => DeleteMovie(movie.Id)">
+                                    Удалить
+                                </button>
+                            </Authorized>
+                        </AuthorizeView>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Movie> movies = new List<Movie>();
+    private bool isLoading = true;
+    private bool isAdmin = false;
+    private string searchMovieId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        isAdmin = user.IsInRole("Администратор");
+        await LoadMovies();
+    }
+
+    private void OnInputSearchMovieId(ChangeEventArgs e)
+    {
+        var input = e.Value?.ToString();
+        if (string.IsNullOrEmpty(input))
+        {
+            searchMovieId = string.Empty;
+            return;
+        }
+
+        // Оставляем только цифры
+        var cleanedInput = new string(input.Where(char.IsDigit).ToArray());
+        searchMovieId = cleanedInput;
+    }
+
+    private async Task SearchMovieById()
+    {
+        if (string.IsNullOrWhiteSpace(searchMovieId))
+        {
+            await LoadMovies();
+            return;
+        }
+
+        if (int.TryParse(searchMovieId, out int movieId))
+        {
+            try
+            {
+                isLoading = true;
+                var movie = await MovieService.SearchMovieByIdAsync(movieId);
+                if (movie != null)
+                {
+                    movies = new List<Movie> { movie };
+                }
+                else
+                {
+                    // Если фильм не найден, очищаем список
+                    movies = new List<Movie>();
+                }
+            }
+            catch (Exception ex)
+            {
+                NotificationService.ShowError($"Ошибка при поиске фильма: {ex.Message}");
+                movies = new List<Movie>();
+            }
+            finally
+            {
+                isLoading = false;
+            }
+        }
+        else
+        {
+            NotificationService.ShowError("Пожалуйста, введите корректный ID фильма");
+        }
+    }
+
+    private async Task ResetMovieList()
+    {
+        searchMovieId = string.Empty;
+        await LoadMovies();
+    }
+
+    private async Task LoadMovies()
+    {
+        try
+        {
+            isLoading = true;
+            movies = await MovieService.GetMoviesAsync();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.ShowError($"Ошибка при загрузке фильмов: {ex.Message}");
+            movies = new List<Movie>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void CreateMovie()
+    {
+        Navigation.NavigateTo("/movies/create");
+    }
+
+    private void ViewMovie(int id)
+    {
+        Navigation.NavigateTo($"/movies/details/{id}");
+    }
+
+    private void EditMovie(int id)
+    {
+        Navigation.NavigateTo($"/movies/edit/{id}");
+    }
+
+    private async Task DeleteMovie(int id)
+    {
+        bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Вы уверены, что хотите удалить этот фильм?");
+        if (confirmed)
+        {
+            try
+            {
+                if (await MovieService.DeleteMovieAsync(id))
+                {
+                    await LoadMovies();
+                }
+            }
+            catch
+            {
+                // Ошибка уже будет показана в MovieService
+            }
+        }
+    }
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");
+        Navigation.NavigateTo("/login");
+    }
+}

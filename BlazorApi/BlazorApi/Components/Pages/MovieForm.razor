@@ -1,0 +1,192 @@
+﻿@page "/movies/create"
+@page "/movies/edit/{Id:int}"
+@using BlazorAPI.ApiRequest
+@using BlazorAPI.ApiRequest.Model
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@inject MovieService MovieService
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@attribute [Authorize(Roles = "Администратор")]
+@rendermode RenderMode.InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NotificationService NotificationService
+@using Microsoft.AspNetCore.Components.Routing
+@using Blazored.LocalStorage
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.IdentityModel.Tokens.Jwt
+@using Microsoft.AspNetCore.Components
+@using System.Timers
+@using System.Security.Claims
+
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+        background-color: #fff3e0; /* Светлый оранжевый фон */
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ffcc80; /* Оранжевая рамка */
+        border-radius: 4px;
+        font-size: 1rem;
+        background-color: #ffffff; /* Белый фон для полей ввода */
+    }
+
+    .btn-primary {
+        background-color: #ff9800; /* Оранжевая кнопка */
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .btn-secondary {
+        background-color: #ffb74d; /* Светло-оранжевая кнопка */
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-left: 10px;
+    }
+
+    .validation-message {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+</style>
+
+<div class="form-container">
+    <h3>@(Id == null ? "Добавление нового фильма" : "Редактирование фильма")</h3>
+
+    <EditForm Model="@movie" OnValidSubmit="@HandleValidSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="name">Название:</label>
+            <Microsoft.AspNetCore.Components.Forms.InputText id="name" class="form-control" @bind-Value="movie.Name" />
+            <ValidationMessage For="@(() => movie.Name)" />
+        </div>
+
+        <div class="form-group">
+            <label for="description">Описание:</label>
+            <InputTextArea id="description" class="form-control" @bind-Value="movie.Description" />
+            <ValidationMessage For="@(() => movie.Description)" />
+        </div>
+
+        <div class="form-group">
+            <label for="genre">Жанр:</label>
+            <Microsoft.AspNetCore.Components.Forms.InputText id="genre" class="form-control" @bind-Value="movie.Genre" />
+            <ValidationMessage For="@(() => movie.Genre)" />
+        </div>
+
+        <div class="form-group">
+            <label for="releaseDate">Дата выхода:</label>
+            <InputDate id="releaseDate" class="form-control" @bind-Value="movie.ReleaseDate" />
+            <ValidationMessage For="@(() => movie.ReleaseDate)" />
+        </div>
+
+        <div class="form-group">
+            <label for="rating">Рейтинг:</label>
+            <InputNumber id="rating" class="form-control" @bind-Value="movie.Rating" />
+            <ValidationMessage For="@(() => movie.Rating)" />
+        </div>
+
+        <div class="form-group">
+            <button type="submit" class="btn-primary">Сохранить</button>
+            <button type="button" class="btn-secondary" @onclick="Cancel">Отмена</button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private Movie movie = new Movie
+    {
+        ReleaseDate = DateTime.Now,
+        Rating = 0,
+        CreatedAt = DateTime.Now
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existingMovie = await MovieService.GetMovieAsync(Id.Value);
+            if (existingMovie != null)
+            {
+                movie = existingMovie;
+            }
+            else
+            {
+                NotificationService.ShowError("Фильм не найден");
+                Navigation.NavigateTo("/movies");
+            }
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            bool success;
+            if (Id.HasValue)
+            {
+                movie.UpdatedAt = DateTime.Now;
+                success = await MovieService.UpdateMovieAsync(Id.Value, movie);
+            }
+            else
+            {
+                Console.WriteLine("Attempting to create movie:");
+                Console.WriteLine($"Name: {movie.Name}");
+                Console.WriteLine($"Description: {movie.Description}");
+                Console.WriteLine($"Genre: {movie.Genre}");
+                Console.WriteLine($"ReleaseDate: {movie.ReleaseDate}");
+                Console.WriteLine($"Rating: {movie.Rating}");
+
+                movie.CreatedAt = DateTime.Now;
+                success = await MovieService.CreateMovieAsync(movie);
+
+                if (!success)
+                {
+                    Console.WriteLine("Failed to create movie");
+                }
+            }
+
+            if (success)
+            {
+                NotificationService.ShowSuccess(Id.HasValue ? "Фильм успешно обновлен" : "Фильм успешно добавлен");
+                Navigation.NavigateTo("/movies");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in HandleValidSubmit: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            NotificationService.ShowError($"Ошибка при сохранении фильма: {ex.Message}");
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/movies");
+    }
+}

@@ -1,0 +1,458 @@
+﻿@page "/profile"
+@rendermode RenderMode.InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@using System.IdentityModel.Tokens.Jwt
+@using System.Security.Claims
+@using BlazorAPI.ApiRequest
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Web
+@using Blazored.LocalStorage
+@using System.Net.Http.Headers
+@using System.Text.Encodings.Web
+@using System.Timers
+
+
+<style>
+    body {
+        background-color: #f9f9f9; /* Светлый фон */
+        color: #343a40;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+
+    .header {
+        color: black;
+        padding: 20px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .profile-container {
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 20px;
+        border-radius: 8px;
+        background-color: #ffffff; /* Белый фон для контейнера */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .profile-info, .edit-form {
+        padding: 20px;
+        border-radius: 8px;
+        background-color: #fff;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+        .profile-info h3, .edit-form h3 {
+            margin-bottom: 15px;
+            color: #ff9800; /* Оранжевый цвет заголовков */
+        }
+
+        .profile-info p {
+            margin: 8px 0;
+            font-size: 16px;
+        }
+
+    .button-container {
+        text-align: center;
+    }
+
+    .action-button, .logout-button {
+        padding: 12px 24px;
+        background-color: #ff9800; /* Оранжевый цвет кнопок */
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+        transition: background-color 0.3s;
+    }
+
+        .action-button:hover, .logout-button:hover {
+            background-color: #e68900; /* Темнее оранжевый при наведении */
+        }
+
+    .logout-button {
+        background-color: #dc3545; /* Красный цвет для кнопки выхода */
+        color: #ffffff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        position: fixed;
+        left: 45%;
+        bottom: 5%;
+    }
+
+        .logout-button:hover {
+            background-color: #c82333; /* Темнее красный при наведении */
+        }
+
+    .edit-form label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .edit-form input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        font-size: 14px;
+    }
+
+    .notification-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+
+    .notification {
+        padding: 12px 20px;
+        margin-bottom: 10px;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        animation: fadeIn 0.5s;
+    }
+
+        .notification.success {
+            background-color: #28a745; /* Зеленый цвет для успешных уведомлений */
+        }
+
+        .notification.error {
+            background-color: #dc3545; /* Красный цвет для ошибок */
+        }
+
+        .notification button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+    @@keyframes fadeIn {
+        from
+
+    {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    }</style>
+
+<div class="header">
+    <span>Личный кабинет</span>
+</div>
+
+<div class="profile-container">
+    @if (!isEditMode)
+    {
+        <h1>Здравствуйте, @(user?.Name ?? "Гость")!</h1>
+        <div class="profile-info">
+            <h3>Ваши данные:</h3>
+            @if (isLoading)
+            {
+                <p>Загрузка...</p>
+            }
+            else if (user == null)
+            {
+                <p>Нет данных о пользователе.</p>
+            }
+            else
+            {
+                <p><strong>Имя:</strong> @user.Name</p>
+                <p><strong>Email:</strong> @user.Email</p>
+                <p><strong>Описание:</strong> @user.Description</p>
+            }
+        </div>
+        <div class="button-container">
+            <button class="action-button" @onclick="ToggleEditMode">Редактировать</button>
+        </div>
+    }
+    else
+    {
+        <div class="edit-form">
+            <h3>Редактирование профиля</h3>
+            <label>Имя:</label>
+            <input @bind="editUser .Name" />
+            <label>Описание:</label>
+            <input @bind="editUser .Description" />
+            <label>Новый пароль:</label>
+            <input type="password" @bind="newPassword" />
+            <div class="button-container">
+                <button class="action-button" @onclick="SaveProfile">Сохранить</button>
+                <button class="action-button" @onclick="ToggleEditMode">Отменить</button>
+            </div>
+        </div>
+    }
+</div>
+
+
+<button class="logout-button" @onclick="Logout">Назад</button>
+
+<div class="notification-container">
+    @foreach (var notification in Notifications)
+    {
+        <div class="notification @notification.Type">
+            <span>@notification.Message</span>
+            <button @onclick="() => RemoveNotification(notification.Id)">×</button>
+        </div>
+    }
+</div>
+
+@code {
+    private UserDto user;
+    private UserDto editUser = new UserDto();
+    private bool isLoading = true;
+    private bool isEditMode = false;
+    private bool isFirstRender = true;
+    private bool showPassword = false;
+    private string newPassword = "";
+
+    private List<NotificationService.NotificationModel> Notifications = new List<NotificationService.NotificationModel>();
+
+    protected override void OnInitialized()
+    {
+        NotificationService.OnNotificationAdded += HandleNotificationAdded;
+    }
+
+    private void HandleNotificationAdded(NotificationService.NotificationModel notification)
+    {
+        Notifications.Add(notification);
+        StateHasChanged();
+
+        var timer = new Timer(5000);
+        timer.Elapsed += (sender, args) =>
+        {
+            InvokeAsync(() =>
+            {
+                RemoveNotification(notification.Id);
+                StateHasChanged();
+            });
+            timer.Dispose();
+        };
+        timer.Start();
+    }
+
+    private void RemoveNotification(Guid id)
+    {
+        var notification = Notifications.FirstOrDefault(n => n.Id == id);
+        if (notification != null)
+        {
+            Notifications.Remove(notification);
+        }
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        showPassword = !showPassword;
+    }
+
+    private bool IsTokenValid(string token)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            var expirationDate = jwtToken.ValidTo;
+            return expirationDate > DateTime.UtcNow;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private UserDto ExtractUserFromToken(string token)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+
+            var user = new UserDto
+                {
+                    Id = int.Parse(jwtToken.Claims.First(c => c.Type == ClaimTypes.NameIdentifier).Value),
+                    Name = jwtToken.Claims.First(c => c.Type == ClaimTypes.Name).Value,
+                    Description = jwtToken.Claims.First(c => c.Type == "description").Value,
+                    Role = jwtToken.Claims.First(c => c.Type == ClaimTypes.Role).Value,
+                    Email = jwtToken.Claims.First(c => c.Type == ClaimTypes.Email).Value,
+                    Logins = jwtToken.Claims
+                            .Where(c => c.Type == "logins")
+                            .Select(c => c.Value)
+                            .ToList()
+                };
+
+            Console.WriteLine("Данные пользователя извлечены из токена.");
+            return user;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Ошибка при извлечении данных из токена: " + ex.Message);
+            return null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isFirstRender = false;
+            await LoadUserDataAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUserDataAsync()
+    {
+        Console.WriteLine("Начало выполнения LoadUserDataAsync...");
+
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+        Console.WriteLine($"Токен из LocalStorage: {token}");
+
+        if (string.IsNullOrEmpty(token) || !IsTokenValid(token))
+        {
+            Console.WriteLine("Токен отсутствует или истек. Попытка обновления...");
+            token = await RefreshTokenAsync();
+
+            if (string.IsNullOrEmpty(token))
+            {
+                Console.WriteLine("Не удалось обновить токен. Перенаправление на страницу входа.");
+                Navigation.NavigateTo("/login");
+                return;
+            }
+        }
+
+        user = ExtractUserFromToken(token);
+        editUser = new UserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Description = user.Description,
+                Email = user.Email,
+                Role = user.Role
+            };
+
+        isLoading = false;
+        Console.WriteLine("Завершение выполнения LoadUserDataAsync.");
+    }
+
+    private async Task<string> RefreshTokenAsync()
+    {
+        var refreshToken = await LocalStorage.GetItemAsync<string>("refreshToken");
+        var httpClient = HttpClientFactory.CreateClient("AuthorizedClient");
+        var response = await httpClient.PostAsJsonAsync("api/Auth/RefreshToken", new { RefreshToken = refreshToken });
+
+        if (response.IsSuccessStatusCode)
+        {
+            var newToken = await response.Content.ReadAsStringAsync();
+            await LocalStorage.SetItemAsync("authToken", newToken);
+            return newToken;
+        }
+        else
+        {
+            Console.WriteLine("Ошибка при обновлении токена.");
+            await LocalStorage.RemoveItemAsync("authToken");
+            await LocalStorage.RemoveItemAsync("refreshToken");
+            Navigation.NavigateTo("/login");
+            return null;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("AuthorizedClient");
+
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (string.IsNullOrEmpty(token))
+            {
+                Console.WriteLine("Токен отсутствует или пуст.");
+                return;
+            }
+
+            // Проверяем, пустые ли поля, и подставляем текущие значения пользователя
+            var updateRequest = new UpdateUserRequest
+                {
+                    Id = user.Id,
+                    Name = string.IsNullOrWhiteSpace(editUser.Name) ? user.Name : editUser.Name, // Если имя пустое, оставляем текущее
+                    Description = string.IsNullOrWhiteSpace(editUser.Description) ? user.Description : editUser.Description, // Если описание пустое, оставляем текущее
+                    Password = string.IsNullOrWhiteSpace(newPassword) ? null : newPassword // Если пароль пустой, не обновляем его
+                };
+
+            Console.WriteLine("Отправляемые данные:");
+            Console.WriteLine(JsonSerializer.Serialize(updateRequest));
+
+            var response = await httpClient.PutAsJsonAsync("api/UserLogin/UpdateUserInfo", updateRequest);
+
+            if (response.IsSuccessStatusCode)
+            {
+                user.Name = updateRequest.Name;
+                user.Description = updateRequest.Description;
+                if (!string.IsNullOrWhiteSpace(newPassword))
+                {
+                    newPassword = "";
+                }
+                ToggleEditMode();
+                NotificationService.ShowSuccess("Профиль успешно обновлен!");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Ошибка: {response.StatusCode}. {errorContent}");
+                NotificationService.ShowError("Ошибка при обновлении профиля.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Ошибка: " + ex.Message);
+            NotificationService.ShowError("Произошла ошибка при обновлении профиля.");
+        }
+    }
+
+    private void ToggleEditMode()
+    {
+        isEditMode = !isEditMode;
+    }
+
+    private async Task Logout()
+    {
+        Navigation.NavigateTo("/movies");
+    }   
+
+    public class UserDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public string Role { get; set; }
+        public string Email { get; set; }
+        public List<string> Logins { get; set; } = new List<string>();
+    }
+}

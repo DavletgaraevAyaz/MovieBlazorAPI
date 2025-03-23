@@ -1,0 +1,233 @@
+﻿@page "/chats/{ReceiverId:int}"
+@using static BlazorApi.Components.Pages.Chats
+@using System.IdentityModel.Tokens.Jwt
+@using System.Security.Claims
+@using BlazorApi.ApiRequest
+@inject NavigationManager Navigation
+@inject IHttpClientFactory HttpClientFactory
+@inject MessagesService MessagesService
+@rendermode InteractiveServer
+
+<style>
+    .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Высота на всю страницу */
+    width: 80%;
+    margin: auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    }
+
+    .chat-title {
+    background-color: #007bff; /* Цвет заголовка */
+    color: white;
+    padding: 10px;
+    text-align: center;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    }
+
+    .messages {
+    flex: 1; /* Занимает оставшееся пространство */
+    padding: 10px;
+    overflow-y: auto; /* Прокрутка при переполнении */
+    }
+
+    .message {
+    margin: 5px 0;
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 80%;
+    }
+
+    .user-message {
+    align-self: flex-end;
+    background-color: #dcf8c6;
+    }
+
+    .sender-message {
+    align-self: flex-start;
+    background-color: #fff;
+    }
+
+    .timestamp {
+    font-size: 0.8em;
+    color: gray;
+    margin-top: 5px;
+    }
+
+    .input-container {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #ccc;
+    background-color: #fff;
+    }
+
+    input[type="text"] {
+    flex: 1; /* Занимает оставшееся пространство */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-right: 10px;
+    }
+
+    button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    }
+
+    button:hover {
+    background-color: #0056b3; /* Темнее при наведении */
+    }
+</style>
+
+<div class="chat-container">
+    <h2 class="chat-title">Чат</h2>
+    <div class="messages">
+        @foreach (var message in messages) {
+            <div class = "message @(message.SenderId == userId ? "user-message" : "sender-message")">
+                <div class = "message-content">
+                    <p>@message.Message</p>
+                    <span class = "timestamp">@message.Timestamp.ToString("HH:mm")</span>
+                </div>       
+            </div>
+        }
+    </div>
+    <div class="input-container">
+        <input type="text" @bind="newMessageContent" placeholder="Введите сообщение..." @onkeydown="@(e => { if (e.Key == "Enter") SendMessage(); })" />
+        <button @onclick="SendMessage">Отправить</button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int ReceiverId { get; set; }
+
+    private string newMessageContent = "";
+
+    private List<MessagesDto> messages = new List<MessagesDto>();
+    private int userId;
+    private HubConnection? hubConnection;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private const string BaseUrl = "api/messages";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl("http://localhost:5256/chatHub").Build();
+
+        hubConnection.On<string, int, int>("ReceiveMessage", (message, senderId, receiverId) =>
+        {
+            if (receiverId != userId && senderId != ReceiverId) return;
+            Console.WriteLine($"Message from {senderId}: {message}");
+            messages.Add(new MessagesDto
+            {
+                SenderId = senderId,
+                ReceiverId = receiverId,
+                Message = message
+            });
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+
+        //await hubConnection.SendAsync("RegisterUser", userId);
+        Console.WriteLine("Good b " + hubConnection.ConnectionId);
+    }
+
+    private async void SendMessage()
+    {
+        if (newMessageContent == "") return;
+        var newMessage = new MessagesDto
+            {
+                SenderId = userId,
+                ReceiverId = ReceiverId,
+                Message = newMessageContent
+            };
+        await hubConnection.SendAsync("SendMessageToUser", newMessageContent, userId, ReceiverId);
+        messages.Add(newMessage);
+        newMessageContent = string.Empty;
+    }
+
+    private async Task<string> RefreshTokenAsync()
+    {
+        var refreshToken = await LocalStorage.GetItemAsync<string>("refreshToken");
+        var httpClient = HttpClientFactory.CreateClient("AuthorizedClient");
+        var response = await httpClient.PostAsJsonAsync("api/Auth/RefreshToken", new { RefreshToken = refreshToken });
+
+        if (response.IsSuccessStatusCode)
+        {
+            var newToken = await response.Content.ReadAsStringAsync();
+            await LocalStorage.SetItemAsync("authToken", newToken);
+            return newToken;
+        }
+        else
+        {
+            Console.WriteLine("Ошибка при обновлении токена.");
+            await LocalStorage.RemoveItemAsync("authToken");
+            await LocalStorage.RemoveItemAsync("refreshToken");
+            Navigation.NavigateTo("/login");
+            return null;
+        }
+    }
+
+    private bool IsTokenValid(string token)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            var expirationDate = jwtToken.ValidTo;
+            return expirationDate > DateTime.UtcNow;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            if (string.IsNullOrEmpty(token) || !IsTokenValid(token))
+            {
+                Console.WriteLine("Токен отсутствует или истек. Попытка обновления...");
+                token = await RefreshTokenAsync();
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    Console.WriteLine("Не удалось обновить токен. Перенаправление на страницу входа.");
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+            }
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            userId = int.Parse(jwtToken.Claims.First(c => c.Type == ClaimTypes.NameIdentifier).Value);
+            messages = await MessagesService.getMessagesWithUserAsync(userId, ReceiverId);
+            Console.WriteLine(messages[0].SenderName);
+            StateHasChanged();
+        }
+    }
+
+    public class MessagesDto
+    {
+        public int SenderId { get; set; }
+        public string SenderName { get; set; }
+        public int ReceiverId { get; set; }
+        public string ReceiverName { get; set; }
+
+        public string Message { get; set; }
+
+        public DateTime Timestamp { get; set; } = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time"));
+    }
+}

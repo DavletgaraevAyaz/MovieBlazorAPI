@@ -1,0 +1,175 @@
+﻿@page "/chats"
+@using System.IdentityModel.Tokens.Jwt
+@using System.Security.Claims
+@using BlazorApi.ApiRequest
+@inject NavigationManager Navigation
+@inject IHttpClientFactory HttpClientFactory
+@inject MessagesService MessagesService
+
+<style>
+    .chat-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #fff3e0;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-item {
+    background-color: #ffcc80;
+    border: 1px solid #ffab40;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin: 10px 0;
+    width: 80%;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+    cursor: pointer;
+
+    }
+
+    .chat-item:hover {
+    background-color: #ffb74d;
+    transform: scale(1.02);
+    }
+
+    h3 {
+    color: #e65100;
+    text-align: center;
+    margin-bottom: 20px;
+    }
+</style>
+
+<h3> Чаты </h3>
+
+<div class = "chat-list">
+    @if (chats.Count != 0) {
+        @foreach(var chat in chats) {
+            <div class = "chat-item" @onclick = "() => NavigateToChat(chat)">
+                @if (chat.ReceiverId == userId)
+                {
+                    @chat.SenderName
+                }
+                else {
+                    @chat.ReceiverName
+                }
+            </div>
+        }
+    } else {
+        <div class="chat-item">Пока что нет чатов</div>
+    }
+</div>
+
+@code {
+    private List<UserMessageDto> chats = new List<UserMessageDto>();
+    private int userId;
+    private HubConnection? hubConnection;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private const string BaseUrl = "api/messages";
+
+    private void NavigateToChat(UserMessageDto chat)
+    {
+        if (chat.ReceiverId == -1)
+        {
+            Navigation.NavigateTo($"/chats/films");
+        }
+        else if (chat.ReceiverId == userId)
+        {
+            Navigation.NavigateTo($"/chats/{chat.SenderId}");
+        }
+        else
+        {
+            Navigation.NavigateTo($"/chats/{chat.ReceiverId}");
+        }
+    }
+
+    private async Task<string> RefreshTokenAsync()
+    {
+        var refreshToken = await LocalStorage.GetItemAsync<string>("refreshToken");
+        var httpClient = HttpClientFactory.CreateClient("AuthorizedClient");
+        var response = await httpClient.PostAsJsonAsync("api/Auth/RefreshToken", new { RefreshToken = refreshToken });
+
+        if (response.IsSuccessStatusCode)
+        {
+            var newToken = await response.Content.ReadAsStringAsync();
+            await LocalStorage.SetItemAsync("authToken", newToken);
+            return newToken;
+        }
+        else
+        {
+            Console.WriteLine("Ошибка при обновлении токена.");
+            await LocalStorage.RemoveItemAsync("authToken");
+            await LocalStorage.RemoveItemAsync("refreshToken");
+            Navigation.NavigateTo("/login");
+            return null;
+        }
+    }
+
+    private bool IsTokenValid(string token)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            var expirationDate = jwtToken.ValidTo;
+            return expirationDate > DateTime.UtcNow;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            if (string.IsNullOrEmpty(token) || !IsTokenValid(token))
+            {
+                Console.WriteLine("Токен отсутствует или истек. Попытка обновления...");
+                token = await RefreshTokenAsync();
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    Console.WriteLine("Не удалось обновить токен. Перенаправление на страницу входа.");
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+            }
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            userId = int.Parse(jwtToken.Claims.First(c => c.Type == ClaimTypes.NameIdentifier).Value);
+            chats = await MessagesService.getMessagesAsync(userId);
+            chats.Insert(0, new UserMessageDto
+            {
+                ReceiverId = -1,
+                ReceiverName = "Чат фильмов",
+            });
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl("http://localhost:5256/chatHub").Build();
+
+        await hubConnection.StartAsync();
+
+        // await hubConnection.SendAsync("RegisterUser", userId);
+    }
+
+    public class UserMessageDto
+    {
+        public int SenderId { get; set; }
+        public string SenderName { get; set; }
+        public int ReceiverId { get; set; }
+        public string ReceiverName { get; set; }
+        public string Message { get; set; }
+    }
+}

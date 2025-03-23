@@ -1,0 +1,234 @@
+﻿@page "/movies/details/{Id:int}"
+@using BlazorAPI.ApiRequest
+@using BlazorAPI.ApiRequest.Model
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@inject MovieService MovieService
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@rendermode RenderMode.InteractiveServer
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
+
+<style>
+    .movie-details-container {
+        margin: 20px auto;
+        padding: 20px;
+        border-radius: 8px;
+    }
+
+    .movie-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #ffcc80; /* Оранжевая рамка */
+    }
+
+    .movie-title {
+        font-size: 24px;
+        color: #e65100; /* Темный оранжевый текст */
+        margin: 0;
+    }
+
+    .movie-info {
+        margin-bottom: 20px;
+    }
+
+    .info-row {
+        display: flex;
+        margin-bottom: 15px;
+    }
+
+    .info-label {
+        width: 150px;
+        font-weight: bold;
+        color: #ff9800; /* Оранжевый цвет для меток */
+    }
+
+    .info-value {
+        flex: 1;
+        color: #333;
+    }
+
+    .description-section {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #ffcc80; /* Оранжевая рамка */
+    }
+
+    .description-text {
+        line-height: 1.6;
+        color: #444;
+    }
+
+    .rating-badge {
+        background-color: #ff9800; /* Оранжевая метка рейтинга */
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+
+    .button-group {
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: none;
+        font-weight: 500;
+    }
+
+    .btn-back {
+        background-color: #ffb74d; /* Светло-оранжевая кнопка "Назад" */
+        color: white;
+    }
+
+    .btn-edit {
+        background-color: #ff9800; /* Оранжевая кнопка "Редактировать" */
+        color: white;
+    }
+
+    .btn-delete {
+        background-color: #dc3545; /* Красная кнопка "Удалить" */
+        color: white;
+    }
+
+    .metadata {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #ffcc80; /* Оранжевая рамка */
+    }
+
+    .loading-spinner {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 200px;
+    }
+</style>
+
+@if (isLoading)
+{
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Загрузка...</span>
+        </div>
+    </div>
+}
+else if (movie == null)
+{
+    <div class="movie-details-container">
+        <p class="text-danger">Фильм не найден</p>
+        <button class="btn btn-back" @onclick="NavigateBack">Назад к списку</button>
+    </div>
+}
+else
+{
+    <div class="movie-details-container">
+        <div class="movie-header">
+            <h1 class="movie-title">@movie.Name</h1>
+            <span class="rating-badge">Рейтинг: @movie.Rating.ToString("0.0")</span>
+        </div>
+
+        <div class="movie-info">
+            <div class="info-row">
+                <span class="info-label">Жанр:</span>
+                <span class="info-value">@movie.Genre</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Дата выхода:</span>
+                <span class="info-value">@movie.ReleaseDate.ToShortDateString()</span>
+            </div>
+        </div>
+
+        <div class="description-section">
+            <h3>Описание</h3>
+            <p class="description-text">@movie.Description</p>
+        </div>
+        <div class="button-group">
+            <button class="btn btn-back" @onclick="NavigateBack">Назад к списку</button>
+            @if (isAdmin)
+            {
+                <button class="btn btn-edit" @onclick="() => NavigateToEdit(movie.Id)">Редактировать</button>
+                <button class="btn btn-delete" @onclick="() => DeleteMovie(movie.Id)">Удалить</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Movie movie;
+    private bool isLoading = true;
+    private bool isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Получаем информацию о фильме
+            movie = await MovieService.GetMovieAsync(Id);
+
+            if (movie == null)
+            {
+                NotificationService.ShowError("Фильм не найден");
+                return;
+            }
+
+            // Проверяем роль пользователя
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            isAdmin = user.IsInRole("Администратор");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.ShowError($"Ошибка при загрузке данных: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/movies");
+    }
+
+    private void NavigateToEdit(int movieId)
+    {
+        Navigation.NavigateTo($"/movies/edit/{movieId}");
+    }
+
+    private async Task DeleteMovie(int movieId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Вы уверены, что хотите удалить этот фильм?"))
+        {
+            try
+            {
+                if (await MovieService.DeleteMovieAsync(movieId))
+                {
+                    Navigation.NavigateTo("/movies");
+                }
+            }
+            catch (Exception ex)
+            {
+                NotificationService.ShowError($"Ошибка при удалении фильма: {ex.Message}");
+            }
+        }
+    }
+}

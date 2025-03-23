@@ -1,0 +1,311 @@
+﻿@page "/register"
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NotificationService NotificationService
+@using Microsoft.AspNetCore.Components.Routing
+@using Blazored.LocalStorage
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.IdentityModel.Tokens.Jwt
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Timers
+@using BlazorAPI.ApiRequest
+
+<style>
+    body {
+        background-color: #f9f9f9; /* Светлый фон */
+        color: #343a40;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+
+    .header {
+        color: black;
+        padding: 20px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: calc(100vh - 80px); /* Учитываем высоту шапки */
+    }
+
+    .login-form {
+        background-color: #ffffff; /* Белый фон для формы */
+        padding: 30px;
+        border-radius: 8px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+        .login-form h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #ff9800; /* Оранжевый цвет заголовка формы */
+        }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #dddddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .btn-primary {
+        width: 100%;
+        padding: 12px;
+        background-color: #ff9800; /* Оранжевый цвет кнопки */
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-bottom: 15px;
+        transition: background-color 0.3s;
+    }
+
+        .btn-primary:hover {
+            background-color: #e68900; /* Темнее оранжевый при наведении */
+        }
+
+    .alert {
+        background-color: #F44336; /* Красный цвет для ошибок */
+        color: #ffffff;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 15px;
+        text-align: center;
+        font-size: 14px;
+    }
+
+    .register-link {
+        color: #ff9800; /* Оранжевый цвет для ссылки */
+        text-decoration: none;
+        font-weight: bold;
+    }
+
+        .register-link:hover {
+            text-decoration: underline;
+        }
+
+    .spinner-border {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        vertical-align: text-bottom;
+        border: 0.25em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
+    }
+
+    .notification-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+
+    .notification {
+        padding: 10px 20px;
+        margin-bottom: 10px;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        animation: fadeIn 0.5s;
+    }
+
+        .notification.success {
+            background-color: #28a745; /* Зеленый цвет для успешных уведомлений */
+        }
+
+        .notification.error {
+            background-color: #dc3545; /* Красный цвет для ошибок */
+        }
+
+        .notification button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+</style>
+
+<div class="header">
+    Регистрация
+</div>
+
+<div class="login-container">
+    <div class="login-form">
+        <h3>Зарегистрироваться</h3>
+
+        <EditForm Model="@registerModel" OnValidSubmit="HandleRegistration">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-group">
+                <label for="email">Почта:</label>
+                <Microsoft.AspNetCore.Components.Forms.InputText id="email" class="form-control" @bind-Value="registerModel.Email" />
+                <ValidationMessage For="@(() => registerModel.Email)" />
+            </div>
+
+            <div class="form-group">
+                <label for="name">Имя:</label>
+                <Microsoft.AspNetCore.Components.Forms.InputText id="name" class="form-control" @bind-Value="registerModel.Name" />
+                <ValidationMessage For="@(() => registerModel.Name)" />
+            </div>
+
+            <div class="form-group">
+                <label for="description">Описание:</label>
+                <Microsoft.AspNetCore.Components.Forms.InputText id="description" class="form-control" @bind-Value="registerModel.Description" />
+                <ValidationMessage For="@(() => registerModel.Description)" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Пароль:</label>
+                <Microsoft.AspNetCore.Components.Forms.InputText id="password" type="password" class="form-control" @bind-Value="registerModel.Password" />
+                <ValidationMessage For="@(() => registerModel.Password)" />
+            </div>
+
+            <button type="submit" class="btn-primary" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span class="sr-only">Загрузка...</span>
+                }
+                else
+                {
+                    <span>Зарегистрироваться</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="mt-3" style="text-align: center;">
+            <NavLink class="register-link" href="/login">Назад</NavLink>
+        </div>
+    </div>
+</div>
+
+<div class="notification-container">
+    @foreach (var notification in Notifications)
+    {
+        <div class="notification @notification.Type">
+            <span>@notification.Message</span>
+            <button @onclick="() => RemoveNotification(notification.Id)">×</button>
+        </div>
+    }
+</div>
+
+
+@code {
+    private RegisterModel registerModel = new RegisterModel();
+    private string errorMessage;
+    private bool isLoading;
+
+    private List<NotificationService.NotificationModel> Notifications = new List<NotificationService.NotificationModel>();
+
+    protected override void OnInitialized()
+    {
+        NotificationService.OnNotificationAdded += HandleNotificationAdded;
+    }
+
+    private void HandleNotificationAdded(NotificationService.NotificationModel notification)
+    {
+        Notifications.Add(notification);
+        StateHasChanged();
+
+        var timer = new Timer(5000);
+        timer.Elapsed += (sender, args) =>
+        {
+            InvokeAsync(() =>
+            {
+                RemoveNotification(notification.Id);
+                StateHasChanged();
+            });
+            timer.Dispose();
+        };
+        timer.Start();
+    }
+
+    private void RemoveNotification(Guid id)
+    {
+        var notification = Notifications.FirstOrDefault(n => n.Id == id);
+        if (notification != null)
+        {
+            Notifications.Remove(notification);
+        }
+    }
+
+    private async Task HandleRegistration()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("UnauthorizedClient");
+
+            var response = await httpClient.PostAsJsonAsync("api/UserLogin/Register", registerModel);
+
+            if (response.IsSuccessStatusCode)
+            {
+                NotificationService.ShowSuccess("Регистрация прошла успешно!");
+                Navigation.NavigateTo("/login");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Ошибка: {errorContent}";
+                NotificationService.ShowError(errorMessage);
+            }
+        }
+        catch (Exception e)
+        {
+            errorMessage = "Произошла ошибка при регистрации.";
+            NotificationService.ShowError(errorMessage);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

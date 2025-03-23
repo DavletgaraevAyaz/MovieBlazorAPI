@@ -1,0 +1,270 @@
+﻿@page "/chats/films"
+@rendermode InteractiveServer
+@using static BlazorApi.Components.Pages.Chats
+@using System.IdentityModel.Tokens.Jwt
+@using System.Security.Claims
+@using BlazorAPI.ApiRequest
+@using BlazorApi.ApiRequest
+@using BlazorAPI.ApiRequest.Model
+@inject NavigationManager Navigation
+@inject IHttpClientFactory HttpClientFactory
+@inject MessagesService MessagesService
+@inject MovieService MovieService
+
+<style>
+    .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Высота на всю страницу */
+    width: 80%;
+    margin: auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    }
+
+    .chat-title {
+    background-color: #007bff; /* Цвет заголовка */
+    color: white;
+    padding: 10px;
+    text-align: center;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    }
+
+    .messages {
+    flex: 1; /* Занимает оставшееся пространство */
+    padding: 10px;
+    overflow-y: auto; /* Прокрутка при переполнении */
+    }
+
+    .message {
+    margin: 5px 0;
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 80%;
+    }
+
+    .user-message {
+    align-self: flex-end;
+    background-color: #dcf8c6;
+    }
+
+    .sender-message {
+    align-self: flex-start;
+    background-color: #fff;
+    }
+
+    .timestamp {
+    font-size: 0.8em;
+    color: gray;
+    margin-top: 5px;
+    }
+
+    .input-container {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #ccc;
+    background-color: #fff;
+    }
+
+    input[type="text"] {
+    flex: 1; /* Занимает оставшееся пространство */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-right: 10px;
+    }
+
+    button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    }
+
+    button:hover {
+    background-color: #0056b3; /* Темнее при наведении */
+    }
+
+    .film-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+    }
+
+    .sender-name {
+    font-size: 0.9em;
+    color: #007bff;
+    cursor: pointer;
+    }
+</style>
+
+<div class="chat-container">
+    <h2 class="chat-title">Chat films</h2>
+    <div class="messages">
+        @foreach (var message in messages)
+        {
+            <div class="message @(message.SenderId == userId ? "user-message" : "sender-message")">
+                @if (!string.IsNullOrEmpty(message.Title))
+                {
+                    <div class="film-title">Фильм: @message.Title</div>
+                }
+                <div class="message-content">
+                    @if(message.SenderId != userId) {
+                        <a class="sender-name" href="/chats/@message.SenderId">@message.SenderName:</a>
+                    }
+                    else {
+                        <p class="sender-name">@message.SenderName:</p>
+                    }
+                    <p>@message.Message</p>
+                    <span class="timestamp">@message.Timestamp.ToString("HH:mm")</span>
+                </div>
+            </div>
+        }
+    </div>
+    <div class="input-container">
+        <select @bind="selectedMovieId">
+            <option value="no">Выберите фильм</option>
+            @foreach (var movie in movies)
+            {
+                <option value = "@movie.Id">@movie.Name</option>
+            }
+        </select>
+        <input type="text" @bind="newMessageContent" placeholder="Введите сообщение..." @onkeydown="@(e => { if (e.Key == "Enter") SendMessage(); })"  />
+        <button @onclick="SendMessage">Отправить</button>
+    </div>
+</div>
+
+@code {
+    private string newMessageContent;
+    private int userId;
+    private string username;
+    private string selectedMovieId;
+    private List<Movie> movies = new List<Movie>();
+    private List<MessagesFilm> messages = new List<MessagesFilm>();
+    private HubConnection? hubConnection;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private const string BaseUrl = "api/messages";
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl("http://localhost:5256/chatHub").Build();
+
+        hubConnection.On<string, int, string, string>("ReceiveMessageFilm", (message, senderId, senderName, Title) =>
+        {
+            if (senderId == userId) return;
+            var newMessage = new MessagesFilm
+                {
+                    SenderId = senderId,
+                    SenderName = senderName,
+                    Title = Title,
+                    Message = message
+                };
+            messages.Add(newMessage);
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+
+        //await hubConnection.SendAsync("RegisterUser", userId);
+        Console.WriteLine("Good b " + hubConnection.ConnectionId);
+    }
+
+    private async Task<string> RefreshTokenAsync()
+    {
+        var refreshToken = await LocalStorage.GetItemAsync<string>("refreshToken");
+        var httpClient = HttpClientFactory.CreateClient("AuthorizedClient");
+        var response = await httpClient.PostAsJsonAsync("api/Auth/RefreshToken", new { RefreshToken = refreshToken });
+
+        if (response.IsSuccessStatusCode)
+        {
+            var newToken = await response.Content.ReadAsStringAsync();
+            await LocalStorage.SetItemAsync("authToken", newToken);
+            return newToken;
+        }
+        else
+        {
+            Console.WriteLine("Ошибка при обновлении токена.");
+            await LocalStorage.RemoveItemAsync("authToken");
+            await LocalStorage.RemoveItemAsync("refreshToken");
+            Navigation.NavigateTo("/login");
+            return null;
+        }
+    }
+
+    private bool IsTokenValid(string token)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            var expirationDate = jwtToken.ValidTo;
+            return expirationDate > DateTime.UtcNow;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            if (string.IsNullOrEmpty(token) || !IsTokenValid(token))
+            {
+                Console.WriteLine("Токен отсутствует или истек. Попытка обновления...");
+                token = await RefreshTokenAsync();
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    Console.WriteLine("Не удалось обновить токен. Перенаправление на страницу входа.");
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+            }
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            username = jwtToken.Claims.First(c => c.Type == ClaimTypes.Name).Value;
+            userId = int.Parse(jwtToken.Claims.First(c => c.Type == ClaimTypes.NameIdentifier).Value);
+            messages = await MessagesService.getMessagesFilmAsync();
+            movies = await MovieService.GetMoviesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async void SendMessage()
+    {
+        if (newMessageContent == "") return;
+        int? filmId = null;
+        string title = null;
+        if (selectedMovieId != null && selectedMovieId != "no")
+        {
+            filmId = int.Parse(selectedMovieId);
+            title = (await MovieService.GetMovieAsync(filmId)).Name;
+        }
+        var newMessage = new MessagesFilm
+            {
+                SenderId = userId,
+                SenderName = username,
+                Title = title,
+                Message = newMessageContent
+            };
+        await hubConnection.SendAsync("SendMessageFilm", newMessageContent, userId, filmId);
+        messages.Add(newMessage);
+        newMessageContent = string.Empty;
+    }
+
+    public class MessagesFilm
+    {
+        public int SenderId { get; set; }
+        public string SenderName { get; set; }
+        public string? Title { get; set; }
+        public string Message { get; set; }
+        public DateTime Timestamp { get; set; } = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time"));
+    }
+}
