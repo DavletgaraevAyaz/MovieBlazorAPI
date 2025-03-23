@@ -35,6 +35,13 @@
         min-height: calc(100vh - 100px);
     }
 
+    .header-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between; /* Это распределяет пространство между заголовком и кнопками */
+        width: 100%; /* Занимает всю ширину */
+    }
+
     .movies-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -115,6 +122,7 @@
     .nav-buttons {
         display: flex;
         gap: 10px;
+        margin-left: auto;
     }
 
     .nav-btn {
@@ -198,9 +206,9 @@
 </style>
 
 <div class="movies-container">
-    <div style="display: flex; align-items: center;">
+    <div class="header-container">
         <h3>Фильмы</h3>
-        <div class="nav-buttons" style="height: 80%; margin-left: 3%;">
+        <div class="nav-buttons">
             <AuthorizeView Roles="Администратор">
                 <Authorized>
                     <button class="nav-btn" @onclick='() => Navigation.NavigateTo("/users")'>

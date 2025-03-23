@@ -48,6 +48,8 @@ app.UseRouting();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
+
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

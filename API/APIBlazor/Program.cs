@@ -53,7 +53,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Movie API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Movie Ayaz API", Version = "v1" });
 
     // Настройка авторизации для Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -99,15 +99,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Movie API V1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Movie Ayaz API");    
     });
 }
+
 
 // Аутентификация и авторизация
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Маршрутизация
+// Маппинг контроллеров и SignalR
 app.MapControllers();
 app.MapHub<ChatHub>("/chatHub");
 
