@@ -1,4 +1,4 @@
-﻿@page "/chats/films"
+﻿@page "/chats/films/{MovieId:int}"
 @rendermode InteractiveServer
 @using static BlazorApi.Components.Pages.Chats
 @using System.IdentityModel.Tokens.Jwt
@@ -6,6 +6,7 @@
 @using BlazorAPI.ApiRequest
 @using BlazorApi.ApiRequest
 @using BlazorAPI.ApiRequest.Model
+@using BlazorApi.ApiRequest.Model
 @inject NavigationManager Navigation
 @inject IHttpClientFactory HttpClientFactory
 @inject MessagesService MessagesService
@@ -101,7 +102,7 @@
     }
 </style>
 
-<div class="chat-container">
+@* <div class="chat-container">
     <h2 class="chat-title">Chat films</h2>
     <div class="messages">
         @foreach (var message in messages)
@@ -137,6 +138,44 @@
         <input type="text" @bind="newMessageContent" placeholder="Введите сообщение..." @onkeydown="@(e => { if (e.Key == "Enter") SendMessage(); })" />
         <button @onclick="SendMessage">Отправить</button>
     </div>
+</div> *@
+<h3>Чаты по фильмам</h3>
+
+@if (movies == null || !movies.Any())
+{
+    <p>Пока что нет фильмов</p>
+}
+else
+{
+    <select @bind="selectedMovieId" class="form-control">
+        <option value="">Выберите фильм</option>
+        @foreach (var movie in movies)
+        {
+            <option value="@movie.Id">@movie.Name</option>
+        }
+    </select>
+}
+
+@if (messages == null || !messages.Any())
+{
+    <p>Пока что нет чатов по фильмам</p>
+}
+else
+{
+    <div class="chat-list">
+        @foreach (var message in messages)
+        {
+            <div class="chat-item">
+                <span><strong>@message.SenderName:</strong> @message.Message</span>
+                <span style="color: gray; font-size: smaller;">@message.Timestamp.ToString("HH:mm:ss")</span>
+            </div>
+        }
+    </div>
+}
+
+<div class="input-group">
+    <input type="text" @bind="newMessageContent" placeholder="Введите сообщение..." @onkeydown="@(e => { if (e.Key == "Enter") SendMessage(); })" />
+    <button @onclick="SendMessage">Отправить</button>
 </div>
 
 @code {
@@ -144,35 +183,58 @@
     private int userId;
     private string username;
     private string selectedMovieId;
+    private string filmName;
+    private int movieId;
     private List<Movie> movies = new List<Movie>();
-    private List<MessagesFilm> messages = new List<MessagesFilm>();
+    private List<MessagesFilmDto> messages = new List<MessagesFilmDto>();
     private HubConnection? hubConnection;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private const string BaseUrl = "api/messages";
+
+    [Parameter]
+    public int MovieId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (MovieId > 0)
+        {
+            movieId = MovieId;
+            var movie = await MovieService.GetMovieAsync(movieId);
+            if (movie != null)
+            {
+                filmName = movie.Name;
+                messages = await MessagesService.getMessagesFilmAsync(movieId);
+            }
+            else
+            {
+                // Обработка случая, когда фильм не найден
+            }
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         hubConnection = new HubConnectionBuilder()
-        .WithUrl("http://localhost:5256/chatHub").Build();
-
-        hubConnection.On<string, int, string, string>("ReceiveMessageFilm", (message, senderId, senderName, Title) =>
-        {
-            if (senderId == userId) return;
-            var newMessage = new MessagesFilm
-                {
-                    SenderId = senderId,
-                    SenderName = senderName,
-                    Title = Title,
-                    Message = message
-                };
-            messages.Add(newMessage);
-            InvokeAsync(StateHasChanged);
-        });
+            .WithUrl($"http://localhost:5256/chatHub?userId={userId}")
+            .Build();
 
         await hubConnection.StartAsync();
 
-        //await hubConnection.SendAsync("RegisterUser", userId);
-        Console.WriteLine("Good b " + hubConnection.ConnectionId);
+        hubConnection.On<string, int, string, string>("ReceiveMessageFilm", (message, senderId, senderName, title) =>
+        {
+            if (movieId > 0)
+            {
+                messages.Add(new MessagesFilmDto
+                    {
+                        SenderId = senderId,
+                        SenderName = senderName,
+                        Title = title,
+                        Message = message,
+                        Timestamp = DateTime.Now
+                    });
+                InvokeAsync(StateHasChanged);
+            }
+        });
+
+        movies = await MovieService.GetMoviesAsync();
     }
 
     private async Task<string> RefreshTokenAsync()
@@ -231,34 +293,55 @@
             }
             var handler = new JwtSecurityTokenHandler();
             var jwtToken = handler.ReadJwtToken(token);
-            username = jwtToken.Claims.First(c => c.Type == ClaimTypes.Name).Value;
             userId = int.Parse(jwtToken.Claims.First(c => c.Type == ClaimTypes.NameIdentifier).Value);
-            messages = await MessagesService.getMessagesFilmAsync();
-            movies = await MovieService.GetMoviesAsync();
-            StateHasChanged();
+
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl("http://localhost:5256/chatHub")
+                .Build();
+
+            hubConnection.On<string, int, string, int?>("ReceiveMessageFilm", (message, senderId, senderName, filmId) =>
+            {
+                if (filmId == movieId)
+                {
+                    messages.Add(new MessagesFilmDto
+                        {
+                            SenderId = senderId,
+                            SenderName = senderName,
+                            Message = message,
+                            Timestamp = DateTime.Now
+                        });
+                    InvokeAsync(StateHasChanged);
+                }
+            });
+
+            await hubConnection.StartAsync();
         }
     }
 
     private async void SendMessage()
     {
-        if (newMessageContent == "") return;
-        int? filmId = null;
-        string title = null;
-        if (selectedMovieId != null && selectedMovieId != "no")
+        if (string.IsNullOrWhiteSpace(newMessageContent)) return;
+
+        if (!string.IsNullOrEmpty(selectedMovieId))
         {
-            filmId = int.Parse(selectedMovieId);
-            title = (await MovieService.GetMovieAsync(filmId)).Name;
-        }
-        var newMessage = new MessagesFilm
+            movieId = int.Parse(selectedMovieId);
+            var movie = movies.FirstOrDefault(m => m.Id == movieId);
+            if (movie != null)
             {
-                SenderId = userId,
-                SenderName = username,
-                Title = title,
-                Message = newMessageContent
-            };
-        await hubConnection.SendAsync("SendMessageFilm", newMessageContent, userId, filmId);
-        messages.Add(newMessage);
-        newMessageContent = string.Empty;
+                filmName = movie.Name;
+
+                await hubConnection.SendAsync("SendMessageFilm", newMessageContent, userId, movieId);
+                messages.Add(new MessagesFilmDto
+                    {
+                        SenderId = userId,
+                        SenderName = username,
+                        Title = filmName,
+                        Message = newMessageContent,
+                        Timestamp = DateTime.Now
+                    });
+                newMessageContent = string.Empty;
+            }
+        }
     }
 
     public class MessagesFilm

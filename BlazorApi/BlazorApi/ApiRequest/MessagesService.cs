@@ -1,7 +1,8 @@
-﻿using Blazored.LocalStorage;
+﻿using BlazorApi.ApiRequest.Model;
+using Blazored.LocalStorage;
 using static BlazorApi.Components.Pages.ChatFilms;
 using static BlazorApi.Components.Pages.Chats;
-using static BlazorApi.Components.Pages.ChatWithUser;
+
 
 namespace BlazorApi.ApiRequest
 {
@@ -33,18 +34,18 @@ namespace BlazorApi.ApiRequest
             return await client.GetFromJsonAsync<List<UserMessageDto>>(url);
         }
 
-        public async Task<List<MessagesFilm>> getMessagesFilmAsync()
+        public async Task<List<MessagesFilmDto>> getMessagesFilmAsync(int movieId)
         {
             try
             {
                 var client = _httpClientFactory.CreateClient("AuthorizedClient");
-                var url = $"{BaseUrl}/getMessagesFilms";
-                return await client.GetFromJsonAsync<List<MessagesFilm>>(url);
+                var url = $"{BaseUrl}/getFilmChats/{movieId}";
+                return await client.GetFromJsonAsync<List<MessagesFilmDto>>(url);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Ошибка при получении сообщений: {ex.Message}");
-                return new List<MessagesFilm>(); // Возвращаем пустой список в случае ошибки
+                return new List<MessagesFilmDto>(); // Возвращаем пустой список в случае ошибки
             }
         }
     }

@@ -3,6 +3,7 @@
 @using System.IdentityModel.Tokens.Jwt
 @using System.Security.Claims
 @using BlazorApi.ApiRequest
+@using BlazorApi.ApiRequest.Model
 @inject NavigationManager Navigation
 @inject IHttpClientFactory HttpClientFactory
 @inject MessagesService MessagesService
@@ -218,27 +219,5 @@
             Console.WriteLine(messages[0].SenderName);
             StateHasChanged();
         }
-    }
-
-    public class MessagesDto
-    {
-        public int SenderId { get; set; }
-        public string SenderName { get; set; }
-        public int ReceiverId { get; set; }
-        public string ReceiverName { get; set; }
-
-        public string Message { get; set; }
-
-        public DateTime Timestamp { get; set; } = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time"));
-    }
-}
-
-namespace BlazorApi.ApiRequest
-{
-    public class newMessageRequest
-    {
-        public string Message { get; set; }
-        public int SenderId { get; set; }
-        public int ReceiverId { get; set; }
     }
 }

@@ -1,10 +1,14 @@
 ﻿@page "/chats"
 @using System.IdentityModel.Tokens.Jwt
 @using System.Security.Claims
+@using BlazorAPI.ApiRequest
+@using BlazorAPI.ApiRequest.Model
 @using BlazorApi.ApiRequest
+@using BlazorApi.ApiRequest.Model
 @inject NavigationManager Navigation
 @inject IHttpClientFactory HttpClientFactory
 @inject MessagesService MessagesService
+@inject MovieService MovieService
 
 <style>
     .chat-list {
@@ -44,42 +48,79 @@
 <h3> Чаты </h3>
 
 <div class="chat-list">
-    @if (chats.Count != 0)
+    <h3>Чаты</h3>
+    <div class="filter-buttons">
+        <button @onclick="() => ShowPersonalChats()">Личные сообщения</button>
+        <button @onclick="() => ShowFilmChats()">Чаты по фильмам</button>
+    </div>
+
+    @if (showPersonalChats)
     {
-        @foreach (var chat in chats)
+        @if (personalChats.Count != 0)
         {
-            <div class="chat-item" @onclick="() => NavigateToChat(chat)">
-                @if (chat.ReceiverId == userId)
-                {
-                    @chat.SenderName
-                }
-                else
-                {
-                    @chat.ReceiverName
-                }
-            </div>
+            @foreach (var chat in personalChats)
+            {
+                <div class="chat-item" @onclick="() => NavigateToChat(chat)">
+                    @if (chat.ReceiverId == userId)
+                    {
+                        @chat.SenderName
+                    }
+                    else
+                    {
+                        @chat.ReceiverName
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="chat-item">Пока что нет личных чатов</div>
         }
     }
     else
     {
-        <div class="chat-item">Пока что нет чатов</div>
+        @if (filmChats.Count != 0)
+        {
+            @foreach (var chat in filmChats)
+            {
+                <div class="chat-item" @onclick="() => NavigateToFilmChat(chat)">
+                    @chat
+                </div>
+            }
+        }
+        else
+        {
+            <div class="chat-item">Пока что нет чатов по фильмам</div>
+        }
     }
 </div>
 
 @code {
     private List<UserMessageDto> chats = new List<UserMessageDto>();
+    private List<UserMessageDto> filteredChats = new List<UserMessageDto>();
+    private List<UserMessageDto> personalChats = new List<UserMessageDto>();
+    private List<MessagesFilmDto> filmChats = new List<MessagesFilmDto>();
+    private bool showPersonalChats = true;
+    private int movieId;
+    private List<Movie> movies = new List<Movie>();
     private int userId;
     private HubConnection? hubConnection;
     private readonly IHttpClientFactory _httpClientFactory;
     private const string BaseUrl = "api/messages";
 
+    [Parameter]
+    public int MovieId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (MovieId > 0)
+        {
+            movieId = MovieId;
+        }
+    }
     private void NavigateToChat(UserMessageDto chat)
     {
-        if (chat.ReceiverId == -1)
-        {
-            Navigation.NavigateTo($"/chats/films");
-        }
-        else if (chat.ReceiverId == userId)
+        if (chat.ReceiverId == userId)
         {
             Navigation.NavigateTo($"/chats/{chat.SenderId}");
         }
@@ -87,6 +128,11 @@
         {
             Navigation.NavigateTo($"/chats/{chat.ReceiverId}");
         }
+    }
+
+    private void NavigateToFilmChat(MessagesFilmDto chat)
+    {
+        Navigation.NavigateTo($"/chats/films/{chat.MovieId}");
     }
 
     private async Task<string> RefreshTokenAsync()
@@ -146,14 +192,27 @@
             var handler = new JwtSecurityTokenHandler();
             var jwtToken = handler.ReadJwtToken(token);
             userId = int.Parse(jwtToken.Claims.First(c => c.Type == ClaimTypes.NameIdentifier).Value);
-            chats = await MessagesService.getMessagesAsync(userId);
-            chats.Insert(0, new UserMessageDto
-                {
-                    ReceiverId = -1,
-                    ReceiverName = "Чат фильмов",
-                });
+            personalChats = await MessagesService.getMessagesAsync(userId);
+
+            // Загрузка чатов по фильмам
+            filmChats = await MessagesService.getMessagesFilmAsync(movieId);
+
+            StateHasChanged();
             StateHasChanged();
         }
+    }
+
+    private void FilterMessagesByFilm(int? filmId)
+    {
+        if (filmId == null)
+        {
+            filteredChats = chats;
+        }
+        else
+        {
+            filteredChats = chats.Where(chat => chat.MovieId == filmId).ToList();
+        }
+        StateHasChanged();
     }
 
     protected override async Task OnInitializedAsync()
@@ -169,9 +228,22 @@
     public class UserMessageDto
     {
         public int SenderId { get; set; }
+        public int MovieId { get; set; }
         public string SenderName { get; set; }
         public int ReceiverId { get; set; }
         public string ReceiverName { get; set; }
         public string Message { get; set; }
+    }
+
+    private void ShowPersonalChats()
+    {
+        showPersonalChats = true;
+        StateHasChanged();
+    }
+
+    private void ShowFilmChats()
+    {
+        showPersonalChats = false;
+        StateHasChanged();
     }
 }

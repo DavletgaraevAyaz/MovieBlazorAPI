@@ -72,30 +72,22 @@ namespace APIBlazor.Controllers
             return messages;
         }
 
-        [HttpGet("getMessagesFilms/")]
-        public async Task<List<MessagesFilmDto>> GetMessagesFilms()
+        [HttpGet("getFilmChats/{movieId}")]
+        public async Task<List<MessagesFilmDto>> GetFilmChats(int movieId)
         {
             var messages = await _context.ChatFilm
-            .Select(m => new
-            {
-                m.SenderId,
-                m.Message,
-                FilmName = m.Movie.Name,
-                SenderName = m.Users.Name,
-                Timestamp = m.Timestamp
-            })
-            .ToListAsync();
-
-            var result = messages.Select(m => new MessagesFilmDto
-            {
-                SenderId = m.SenderId,
-                Message = m.Message,
-                Title = m.FilmName,
-                SenderName = m.SenderName,
-                Timestamp = m.Timestamp
-            }).ToList();
-
-            return result;
+                .Where(cf => cf.MovieId == movieId)
+                .OrderByDescending(cf => cf.Timestamp)
+                .Select(m => new MessagesFilmDto
+                {
+                    SenderId = m.SenderId,
+                    Message = m.Message,
+                    Title = m.Movie.Name,
+                    SenderName = m.Users.Name,
+                    Timestamp = m.Timestamp
+                })
+                .ToListAsync();
+            return messages;
         }
 
         public class UserMessageDto
@@ -103,6 +95,7 @@ namespace APIBlazor.Controllers
             public int SenderId { get; set; }
             public string SenderName { get; set; }
             public int ReceiverId { get; set; }
+            public int MovieId { get; set; }
             public string ReceiverName { get; set; }
         }
 

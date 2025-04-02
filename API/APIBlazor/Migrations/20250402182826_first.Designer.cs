@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace APIBlazor.Migrations
 {
     [DbContext(typeof(ContextDB))]
-    [Migration("20250323194111_first")]
+    [Migration("20250402182826_first")]
     partial class first
     {
         /// <inheritdoc />
@@ -96,6 +96,9 @@ namespace APIBlazor.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("MovieId")
+                        .HasColumnType("int");
+
                     b.Property<int>("ReceiverId")
                         .HasColumnType("int");
 
@@ -106,6 +109,8 @@ namespace APIBlazor.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MovieId");
 
                     b.HasIndex("ReceiverId");
 
@@ -230,6 +235,12 @@ namespace APIBlazor.Migrations
 
             modelBuilder.Entity("APIBlazor.Model.Messages", b =>
                 {
+                    b.HasOne("APIBlazor.Model.Movie", "Movie")
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
                     b.HasOne("APIBlazor.Model.Users", "Receiver")
                         .WithMany()
                         .HasForeignKey("ReceiverId")
@@ -241,6 +252,8 @@ namespace APIBlazor.Migrations
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+
+                    b.Navigation("Movie");
 
                     b.Navigation("Receiver");
 

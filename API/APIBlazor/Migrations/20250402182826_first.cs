@@ -121,12 +121,18 @@ namespace APIBlazor.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     SenderId = table.Column<int>(type: "int", nullable: false),
                     ReceiverId = table.Column<int>(type: "int", nullable: false),
+                    MovieId = table.Column<int>(type: "int", nullable: false),
                     Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Messages", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Messages_Movies_MovieId",
+                        column: x => x.MovieId,
+                        principalTable: "Movies",
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Messages_Users_ReceiverId",
                         column: x => x.ReceiverId,
@@ -159,6 +165,11 @@ namespace APIBlazor.Migrations
                 name: "IX_Logins_UserId",
                 table: "Logins",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Messages_MovieId",
+                table: "Messages",
+                column: "MovieId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Messages_ReceiverId",

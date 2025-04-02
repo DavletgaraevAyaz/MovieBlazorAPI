@@ -93,6 +93,9 @@ namespace APIBlazor.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("MovieId")
+                        .HasColumnType("int");
+
                     b.Property<int>("ReceiverId")
                         .HasColumnType("int");
 
@@ -103,6 +106,8 @@ namespace APIBlazor.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MovieId");
 
                     b.HasIndex("ReceiverId");
 
@@ -227,6 +232,12 @@ namespace APIBlazor.Migrations
 
             modelBuilder.Entity("APIBlazor.Model.Messages", b =>
                 {
+                    b.HasOne("APIBlazor.Model.Movie", "Movie")
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
                     b.HasOne("APIBlazor.Model.Users", "Receiver")
                         .WithMany()
                         .HasForeignKey("ReceiverId")
@@ -238,6 +249,8 @@ namespace APIBlazor.Migrations
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+
+                    b.Navigation("Movie");
 
                     b.Navigation("Receiver");
 
